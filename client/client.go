@@ -1,51 +1,28 @@
 package main
 
 import (
-    "bytes"
-    "encoding/json"
-    "fmt"
-    "io/ioutil"
-    "net/http"
-    "time"
+	"fmt"
+	"io/ioutil"
+	"net/http"
 )
-
-const (
-    serverURL = "http://localhost:8000/client/checkin" // change this to your server URL
-    deviceID  = "device123"
-)
-
-func checkin() {
-    data := map[string]string{
-        "device_id": deviceID,
-    }
-
-    jsonData, err := json.Marshal(data)
-    if err != nil {
-        fmt.Println("Error marshaling JSON:", err)
-        return
-    }
-
-    resp, err := http.Post(serverURL, "application/json", bytes.NewBuffer(jsonData))
-    if err != nil {
-        fmt.Println("Error sending POST:", err)
-        return
-    }
-    defer resp.Body.Close()
-
-    body, err := ioutil.ReadAll(resp.Body)
-    if err != nil {
-        fmt.Println("Error reading response:", err)
-        return
-    }
-
-    fmt.Printf("[+] Checked in. Server response: %s\n", string(body))
-}
 
 func main() {
-    fmt.Println("[+] Client started.")
+	deviceName := "kit kat"
+	url := fmt.Sprintf("http://127.0.0.1:8000/ping/%s", deviceName)
 
-    for {
-        checkin()
-        time.Sleep(5 * time.Second)
-    }
+	resp, err := http.Get(url)
+	if err != nil {
+		fmt.Println("Error:", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	// Read the response
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Println("Read error:", err)
+		return
+	}
+
+	fmt.Println("Server response:", string(body))
 }
