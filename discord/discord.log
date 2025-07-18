@@ -357,3 +357,5 @@ aiohttp.client_exceptions.ClientConnectorDNSError: Cannot connect to host gatewa
 [2025-07-18 22:17:47] [DEBUG   ] discord.gateway: For Shard ID None: WebSocket Event: {'t': None, 's': None, 'op': 11, 'd': None}
 [2025-07-18 22:18:28] [DEBUG   ] discord.gateway: Keeping shard ID None websocket alive with sequence 11.
 [2025-07-18 22:18:29] [DEBUG   ] discord.gateway: For Shard ID None: WebSocket Event: {'t': None, 's': None, 'op': 11, 'd': None}
+[2025-07-18 22:19:10] [DEBUG   ] discord.gateway: Keeping shard ID None websocket alive with sequence 11.
+[2025-07-18 22:19:10] [DEBUG   ] discord.gateway: For Shard ID None: WebSocket Event: {'t': None, 's': None, 'op': 11, 'd': None}
