@@ -7,8 +7,9 @@ import os
 import requests
 
 # Token
-load_dotenv()
+load_dotenv(dotenv_path=".env")
 token = os.getenv('DISCORD_TOKEN')
+apiToken = os.getenv('API_SECRET')
 
 # Log stuff
 handler = logging.FileHandler(filename='discord.log', encoding='utf-8', mode='w')
@@ -83,7 +84,7 @@ async def on_ready():
 async def listCows(interaction: discord.Interaction):
     await interaction.response.send_message("Listing all cows...")
 
-    url = f"http://127.0.0.1:8000/command/listcows/{token}"
+    url = f"http://127.0.0.1:8000/command/listcows/{apiToken}"
     r = requests.get(url)
     data = r.json()
 

