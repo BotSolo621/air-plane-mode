@@ -1,4 +1,3 @@
-# bot.py
 import discord
 from discord.ext import commands
 from discord import app_commands
@@ -9,7 +8,6 @@ import logging
 
 load_dotenv(".env")
 token = os.getenv("DISCORD_TOKEN")
-apiToken = os.getenv("API_SECRET")
 
 handler = logging.FileHandler(filename="discord.log", encoding="utf-8", mode="w")
 intents = discord.Intents.default()
@@ -59,27 +57,25 @@ def make_table(data, headers, col_widths=None):
     ]
     return "\n".join(table)
 
+GUILD_ID = 1322767805782691942
+
 @bot.event
 async def on_ready():
-    print(f"{bot.user} is ready!")
-    await bot.tree.sync()
+    print("on_ready fired!")
+    guild = discord.Object(id=GUILD_ID)
+    await bot.tree.sync(guild=guild)
+    print("[+] Guild commands synced!")
 
 @bot.tree.command(name="cows", description="List all cows with status in a table")
 async def listCows(interaction: discord.Interaction):
-    await interaction.response.send_message("Listing all cows...")
-    url = f"http://127.0.0.1:8000/command/listcows/{apiToken}"
+    await interaction.response.send_message("Fetching cows...")
+    url = f"http://127.0.0.1:8000/command/listcows/"
     r = requests.get(url)
     data = r.json()
-
-    if data.get("auth") != "ok":
-        await interaction.edit_original_response(content="❌ Failed to authenticate, please DM eppybot")
-        return
-
     cows = data.get("cows", [])
     if not cows:
-        await interaction.edit_original_response(content="No cows connected....")
+        await interaction.edit_original_response(content="No cows present")
         return
-
     cow_data = [(cid, name, "Online" if cid.endswith("1") else "Offline") for cid, name in cows]
     headers = ["ID", "Name", "Status"]
     table_text = make_table(cow_data, headers)
@@ -87,15 +83,15 @@ async def listCows(interaction: discord.Interaction):
     await interaction.edit_original_response(content=f"```\n{table_text}\n```")
 
 @bot.tree.command(name="ssh", description="Remotely access the terminal of the cow")
-@app_commands.describe(cowID="cow's ID")
-async def ssh(interaction: discord.Interaction, cow: str):
-    await interaction.response.send_message("Processing SSH request...")
-    url = f"http://127.0.0.1:8000/command/ssh/{cow}/{apiToken}"
+@app_commands.describe(cow="cow's ID")
+async def terminal(interaction: discord.Interaction, cow: str):
+    await interaction.response.send_message("Creating ssh tunnel...")
+    url = f"http://127.0.0.1:8000/command/ssh/{cow}"
     r = requests.get(url)
     data = r.json()
-    if data.get("auth") != "ok":
-        await interaction.edit_original_response(content="❌ Failed to auth or timed out, DM eppybot")
-        return
-    await interaction.edit_original_response(content=f"```>{data.get('ssh', '')}```")
+    if data.get("status") != "ok":
+        await interaction.edit_original_response(content="Request failed.")
+    await interaction.edit_original_response(content="```ssh user@serverip```")
 
+print("Running...")
 bot.run(token, log_handler=handler, log_level=logging.DEBUG)
